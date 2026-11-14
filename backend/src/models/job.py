@@ -8,6 +8,7 @@ class Job(Base):
     dataset_id: Mapped[int] = mapped_column(ForeignKey('datasets.id'))
     params: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(20), default='queued')
+    teams: Mapped[list] = mapped_column(JSON, default=list)
     result: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str] = mapped_column(String(1000), default='')
     approved: Mapped[bool] = mapped_column(Boolean, default=False)

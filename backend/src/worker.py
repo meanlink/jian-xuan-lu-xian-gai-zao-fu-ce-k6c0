@@ -4,22 +4,35 @@ from sqlalchemy import select
 from redis import Redis
 from src.config.database import Session
 from src.config.settings import REDIS_URL
-from src.models import Job, Dataset, Report
+from src.models import Job, Dataset, Report, User
 from src.services.business import analyze
 from src.services.reports import deliver
+from src.services.access import covers, job_teams_of, scoped_records
 from src.services.audit import record
 logging.basicConfig(level=logging.INFO)
 def execute(job_id):
     with Session() as db:
         j=db.get(Job,job_id)
         if not j or j.status!='queued':return
+        creator=db.get(User,j.created_by)
+        # 撤权生效为界：执行前校验，越权的排队任务暂停并说明原因
+        if not covers(db,creator,job_teams_of(j)):
+            j.status='paused';j.error='授权已变更：创建者不再覆盖任务涉及小组，执行被拦截，待负责人复核'
+            record(db,'worker','job.paused',{'id':j.id,'reason':j.error});db.commit();return
         j.status='running'; db.commit()
         try:
             d=db.get(Dataset,j.dataset_id)
-            result=analyze(d.records,j.params)
+            scoped=scoped_records(db,creator,d.records)
+            result=analyze(scoped,j.params)
             json.dumps(result,allow_nan=False)
-            j.result=result;j.status='completed';j.finished_at=time.time()
-            record(db,'worker','job.completed',{'id':j.id})
+            actual=sorted({str(r.get('team')) for r in scoped})
+            # 写结果前再校验：计算期间撤权的，不产出新的越权结果
+            if not covers(db,creator,actual):
+                j.status='paused';j.error='计算期间授权变更，结果已按撤权生效拦截，待负责人复核'
+                record(db,'worker','job.paused',{'id':j.id,'reason':j.error})
+            else:
+                j.result=result;j.teams=actual;j.status='completed';j.finished_at=time.time()
+                record(db,'worker','job.completed',{'id':j.id})
         except Exception as e:
             logging.exception('Analysis failed')
             j.status='failed';j.error=str(e)[:990];j.finished_at=time.time()

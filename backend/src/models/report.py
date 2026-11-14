@@ -1,4 +1,4 @@
-from sqlalchemy import String, Double, ForeignKey, Boolean
+from sqlalchemy import String, Double, ForeignKey, Boolean, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 from src.config.database import Base
 class Report(Base):
@@ -7,6 +7,7 @@ class Report(Base):
     name: Mapped[str] = mapped_column(String(160))
     job_id: Mapped[int] = mapped_column(ForeignKey('jobs.id'))
     destination: Mapped[str] = mapped_column(String(120))
+    recipient_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True)
     interval_seconds: Mapped[int]
     next_run: Mapped[float] = mapped_column(Double)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -18,3 +19,5 @@ class Delivery(Base):
     checksum: Mapped[str] = mapped_column(String(64))
     filename: Mapped[str] = mapped_column(String(160))
     destination: Mapped[str] = mapped_column(String(120))
+    recipient_id: Mapped[int | None] = mapped_column(ForeignKey('users.id'), nullable=True)
+    teams: Mapped[list] = mapped_column(JSON, default=list)

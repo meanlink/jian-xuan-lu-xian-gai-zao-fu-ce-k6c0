@@ -4,7 +4,8 @@
 
 ## 模块与业务流程
 数据接入（JSON/CSV、字段验证、批次指纹）→ 参数化分析（异步 Python worker）→ 结果复核（指标、图形、明细、解释、批准）→ 定时分发（本地收件箱、CSV/JSON、SHA256）；另有业务总览和审计轨迹。
-三个贯穿全栈的实体：Dataset 数据批次、Job 分析任务、Report 分发计划；辅助 User、Audit、Delivery。
+三个贯穿全栈的实体：Dataset 数据批次、Job 分析任务、Report 分发计划；辅助 User、Grant、Audit、Delivery。
+小组授权：负责人按小组给账号授权（Grant），样本、分析结果与简报按获授权小组实时隔离；混合批次只用获授权小组计算，汇总不泄露其他小组；分发计划绑定收件账号，执行时按其权限生成快照；撤权即刻生效——排队任务暂停并说明原因，越权结果与文件发布被拦截，旧登录与历史下载链接同样受限；负责人可全量复核并在授权管理页查看变更与受阻任务。
 
 ## 快速启动
 ```bash
@@ -16,11 +17,11 @@ docker compose exec -T backend python -m scripts.seed_demo
 `SEED_DEMO=true` 自动幂等 seed；不覆盖用户修改。手动 seed 命令可重复执行。
 
 ## 演示账号与权限
-|账号|密码|真实权限|
-|---|---|---|
-|admin@demo.local|Demo123!|接入、执行、批准、分发、暂停、读取与下载|
-|analyst@demo.local|Demo123!|接入、执行、读取与下载；不能批准或安排分发|
-|viewer@demo.local|Demo123!|只读与下载|
+|账号|密码|真实权限|获授权小组|
+|---|---|---|---|
+|admin@demo.local|Demo123!|接入、执行、批准、分发、暂停、授权管理、读取与下载|全部（负责人隐含全量）|
+|analyst@demo.local|Demo123!|接入、执行、读取与下载；不能批准或安排分发|一组、二组（seed 默认）|
+|viewer@demo.local|Demo123!|只读与下载|一组（seed 默认）|
 
 ## 技术与本地开发
 Python 3.12 / FastAPI / SQLAlchemy / NumPy / SciPy / scikit-learn；MySQL 8.0；Redis 7；Nginx；原生 HTML CSS JavaScript ES modules（用户指定）。后端所有校验、持久化和算法在服务端。无前端打包步骤。
@@ -29,7 +30,7 @@ Python 3.12 / FastAPI / SQLAlchemy / NumPy / SciPy / scikit-learn；MySQL 8.0；
 ## 目录与工程约定
 backend/src/{models,schemas,services,routes,controllers,middlewares,constants,config,utils}；backend/scripts/seed_demo.py；backend/migrations/initial.py。
 frontend/src/{api,stores,types,components/common,hooks,pages,router,utils,constants}。
-Role 枚举：admin/analyst/viewer；JobStatus：queued/running/completed/failed。后端 backend/src/constants/enums.py，前端 frontend/src/constants/enums.js；路由权限在 middlewares/auth.py；页面按相同角色控制操作入口。
+Role 枚举：admin/analyst/viewer；JobStatus：queued/running/completed/failed/paused。后端 backend/src/constants/enums.py，前端 frontend/src/constants/enums.js；路由权限在 middlewares/auth.py，小组授权边界在 services/access.py 与 routes/grants.py；页面按相同角色控制操作入口，授权管理页（frontend/src/pages/grants.js）仅负责人可见。
 
 ## 环境变量与 Docker
 COMPOSE_PROJECT_NAME=pick-paired；FRONTEND_PORT=18205；BACKEND_PORT=19205；DB_PORT=17705；DB_PASSWORD、JWT_SECRET 见 .env.example；SEED_DEMO 默认 true。共享命名产物卷供后端下载与 worker 写入，数据库/Redis 各持久卷。
